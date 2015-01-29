@@ -16,8 +16,9 @@
 # Pixie will look find the Python variable that matches the name and replace
 # it with that value.
 
-import sys
+import argparse
 import re
+import sys
 
 SIGIL_CHAR = '$'
 PIXIE_TAG = '<pixie>'
@@ -48,7 +49,7 @@ def replace_sigils(line, sigils):
     return line
 
 
-def main(pixie_file):
+def main(pixie_file, verbose=False):
     css_data = []
     python_data = []
     out_file = pixie_file[0:pixie_file.rfind('.')] + '.css' # Make outfile name
@@ -62,10 +63,17 @@ def main(pixie_file):
             line = raw.readline()
 
         if PIXIE_TAG in line:     # Start gathering python data
+            if verbose:
+                if '/*' not in line:
+                    line = '/*\n' + line
+                css_data.append( line)
             line = raw.readline()   # Skip over <pixie> tag
 
             while line != '' and CLOSE_TAG not in line.lower(): # Collect Python data
                 python_data.append(line)
+                #TODO put flag in here to keep the pixie data in the final css file
+                if verbose:
+                    css_data.append(line)
                 line = raw.readline()
 
             if line == '': # Error state. no closing tah
@@ -79,7 +87,12 @@ def main(pixie_file):
             for var in variables: # Make sigils out of python variables
                 sigils[SIGIL_CHAR + var] = variables[var]
 
+            if verbose:
+                if '*/' not in line:
+                    line = line + '*/'
+                css_data.append(line)
             line = raw.readline() # Jump over closing tag
+
             while line != '':   # Replace and variables in the CSS with the sigils
                 css_data.append(replace_sigils(line, sigils))
                 line = raw.readline()
@@ -87,13 +100,19 @@ def main(pixie_file):
     with open(out_file, 'w') as output: # Write the CSS file
         for line in css_data:
             output.write(line)
-    print("[SUCCESS] Preprocessing complete!")
-    print(pixie_file + " created!")
+
+    print("[SUCCESS] " + out_file + " created!")
+
+class ArgHolder(object):
+    """ Empty class to hold argument values """
+    pass
 
 if __name__ == '__main__':
 
-    if len(sys.argv) < 2:
-        print("Usage: pixie.py <pixie_file_name>")
-        print("E.g. pixie.py my_stylesheet.pixie")
-    else:
-        main(sys.argv[1])
+    args = ArgHolder()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v', action='store_true', help='Keeps the Pixie data in the output CSS file')
+    parser.add_argument('filename', help='The file to parse')
+    parser.parse_args(sys.argv[1:], namespace=args)
+
+    main(args.filename, args.v)
